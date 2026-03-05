@@ -1,0 +1,20 @@
+[0.0s] How often do you eat out? Who do you go with?
+[4.0s] I often eat out on weekends when I hang out with my friends.
+[8.0s] What restaurant do you usually visit?
+[11.0s] Well, there are not many restaurants in my neighborhood, so my best choice is the deli and convenience stores like the Circle K, Mini Stop, Be Smart.
+[21.0s] What type of food do you enjoy to eat? Western or Asian?
+[26.0s] I'm interested in Asian food. Western food is not my thing.
+[30.0s] How much do you usually pay when you eat out?
+[34.0s] It's not very expensive, just around $5 for each meal.
+[38.5s] Do you enjoy spicy food?
+[41.0s] Yes, I do, especially on cold days.
+[44.5s] Are the servers there friendly to you?
+[47.5s] Yes, they are. Most of them are really helpful.
+[51.5s] Have you ever tried Italian food?
+[54.5s] Yes, at least once, when I was in my friend's wedding party.
+[58.5s] Are you concerned about calories when eating out?
+[62.5s] Yes, I am. I'm on diet now, so this really matters to me.
+[67.5s] Are fast food restaurants like KFC or McDonald's famous in your country?
+[72.5s] Yes, they are. The youth in my country are big fans of fast food.
+[77.5s] Do you often drink alcohol when eating out?
+[81.0s] No, not often. Just when I have parties with my friends.

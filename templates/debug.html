@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug</title>
+</head>
+<body>
+    <h1>Debug Page</h1>
+    <div id="summaryText">Test</div>
+    <div id="emotionDisplay">Test</div>
+    <div id="keywordsDisplay">Test</div>
+    <div id="highlightsDisplay">Test</div>
+    <div id="tasksDisplay">Test</div>
+    <div id="chaptersDisplay">Test</div>
+    <div id="speakerSummaryText">Test</div>
+    <div id="timelineDisplay">Test</div>
+    <div id="metricsDisplay">Test</div>
+    
+    <script>
+        const elements = [
+            'summaryText', 'emotionDisplay', 'keywordsDisplay',
+            'highlightsDisplay', 'tasksDisplay', 'chaptersDisplay',
+            'speakerSummaryText', 'timelineDisplay', 'metricsDisplay'
+        ];
+        
+        console.log('🔍 Checking elements:');
+        elements.forEach(id => {
+            const el = document.getElementById(id);
+            console.log(`${id}: ${el ? '✅ Found' : '❌ Missing'}`);
+        });
+    </script>
+</body>
+</html>
