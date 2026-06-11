@@ -20,7 +20,48 @@ except ImportError:
 
 class AudioEnhancer:
     """Audio enhancement and noise reduction"""
+    def adaptive_preemphasis(self, y: np.ndarray, sr: int) -> np.ndarray:
+        """
+        Apply adaptive pre-emphasis based on voice characteristics
+        """
+        # Estimate average pitch to detect child vs adult voices
+        try:
+            pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+            pitch_values = pitches[pitches > 0]
+            avg_pitch = np.mean(pitch_values) if len(pitch_values) > 0 else 200
+        
+            # Children typically have higher pitch (>300 Hz)
+            if avg_pitch > 300:
+                preemphasis_coeff = 0.95  # Less boost for children's voices
+                print(f"   👧 Child-like voice detected (pitch: {avg_pitch:.0f}Hz), using coeff={preemphasis_coeff}")
+            else:
+                preemphasis_coeff = 0.97  # Standard boost for adults
+        except:
+            preemphasis_coeff = 0.97
     
+        return librosa.effects.preemphasis(y, coef=preemphasis_coeff)
+
+
+    def remove_low_frequency_rumble(self, y: np.ndarray, sr: int, cutoff_hz: int = 80) -> np.ndarray:
+        """
+        Remove low-frequency noise (rumble, AC hum, etc.)
+        """
+        from scipy import signal
+    
+        if sr < cutoff_hz * 2:
+            return y  # Can't filter if sample rate is too low
+    
+        # Design high-pass filter
+        nyquist = sr / 2
+        normal_cutoff = cutoff_hz / nyquist
+        b, a = signal.butter(4, normal_cutoff, btype='high')
+    
+        # Apply filter
+        y_filtered = signal.filtfilt(b, a, y)
+    
+        print(f"   🔇 Removed frequencies below {cutoff_hz}Hz")
+        return y_filtered
+
     def __init__(self, sample_rate: int = 16000):
         self.sample_rate = sample_rate
     
@@ -47,32 +88,29 @@ class AudioEnhancer:
         try:
             # Load audio
             y, sr = librosa.load(str(input_path), sr=self.sample_rate)
-            
+
+            y = self.remove_low_frequency_rumble(y, sr)
+
             # Apply noise reduction if available
-            if NOISEREDUCE_AVAILABLE and len(y) > 10000:  # Need sufficient length
+            if NOISEREDUCE_AVAILABLE and len(y) > 10000:
                 print("   🔇 Applying noise reduction...")
-                # Estimate noise from first 2 seconds
-                noise_sample = y[:min(2 * sr, len(y))]
-                y_reduced = nr.reduce_noise(y=y, sr=sr, stationary=True)
-            else:
-                y_reduced = y
-            
+                y = nr.reduce_noise(y=y, sr=sr, stationary=True)
+        
             # Normalize audio
             print("   🔊 Normalizing audio...")
-            y_normalized = librosa.util.normalize(y_reduced)
-            
-            # Apply pre-emphasis (enhance high frequencies)
-            y_enhanced = librosa.effects.preemphasis(y_normalized)
-            
+            y = librosa.util.normalize(y)
+        
+            # Apply adaptive pre-emphasis
+            y = self.adaptive_preemphasis(y, sr)
+        
             # Save enhanced audio
-            sf.write(output_path, y_enhanced, sr)
-            
+            sf.write(output_path, y, sr)
+        
             print(f"   ✅ Enhanced audio saved: {Path(output_path).name}")
             return output_path
-            
+        
         except Exception as e:
             print(f"   ⚠️ Audio enhancement failed: {e}")
-            # Return original if enhancement fails
             return str(input_path)
     
     def get_audio_info(self, audio_path: str) -> dict:

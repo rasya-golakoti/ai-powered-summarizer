@@ -4,7 +4,7 @@ from models_manager import get_model
 
 def transcribe_audio(audio_path: str, language: str = "en") -> Dict:
     """
-    Transcribe audio using Whisper model
+    Transcribe audio using Whisper model with confidence filtering
     """
     whisper_model = get_model("whisper")
     
@@ -28,16 +28,43 @@ def transcribe_audio(audio_path: str, language: str = "en") -> Dict:
         )
         
         segments = []
+        low_confidence_count = 0
+        total_segments = len(result.get("segments", []))
+        
         for seg in result.get("segments", []):
-            if seg.get("text", "").strip():
+            text = seg.get("text", "").strip()
+            
+            # ============================================
+            # ADD CONFIDENCE FILTER HERE
+            # ============================================
+            # Get confidence score (avg_logprob)
+            # Higher = more confident (0 = perfect, -1 = very uncertain)
+            confidence = seg.get("avg_logprob", -1.0)
+            
+            # Only keep segments with good confidence (above -0.6)
+            # Adjust this threshold as needed:
+            # -0.3 = very strict (only very clear speech)
+            # -0.6 = balanced (default, filters noisy parts)
+            # -1.0 = no filtering (keeps everything)
+            if text and confidence > -0.6:  # ← CONFIDENCE FILTER
                 segments.append({
                     "start": seg.get("start", 0.0),
                     "end": seg.get("end", 0.0),
-                    "text": seg.get("text", "").strip()
+                    "text": text
                 })
-        full_text = result.get("text", "").strip()
+            else:
+                low_confidence_count += 1
+                if text and confidence <= -0.6:
+                    print(f"   ⚠️ Skipping low-confidence: '{text[:40]}...' (conf: {confidence:.2f})")
+        
+        # Build full text from filtered segments
+        full_text = " ".join([s["text"] for s in segments]).strip()
         duration = result.get("duration", 0.0)
-        print(f"   ✅ Transcribed {len(segments)} segments, {len(full_text.split())} words")
+        
+        print(f"   ✅ Transcribed {len(segments)}/{total_segments} segments, {len(full_text.split())} words")
+        if low_confidence_count > 0:
+            print(f"   ⚠️ Skipped {low_confidence_count} low-confidence segments")
+        
         return {
             "text": full_text,
             "segments": segments,

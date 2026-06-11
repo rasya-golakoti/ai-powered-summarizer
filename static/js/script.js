@@ -5,7 +5,8 @@ const clearBtn = document.getElementById('clearBtn');
 const resultsContentDiv = document.getElementById('resultsContent');
 const loadingDiv = document.getElementById('loading');
 const metricsDisplay = document.getElementById('metricsDisplay');
-const summaryText = document.getElementById('summaryText');
+const abstractiveSummary = document.getElementById('abstractiveSummary');
+const extractiveSummary = document.getElementById('extractiveSummary');
 const emotionDisplay = document.getElementById('emotionDisplay');
 const keywordsDisplay = document.getElementById('keywordsDisplay');
 const highlightsDisplay = document.getElementById('highlightsDisplay');
@@ -85,14 +86,11 @@ function displayResults(data) {
     currentResults = data.results;
     currentResultId = data.result_id;
     
-    // Display statistics if available
-    if (data.stats) {
-        console.log('Stats:', data.stats);
-        // You could display stats in a separate div if you want
-    }
+    // Display both summaries
+    safeSetText(abstractiveSummary, data.results?.abstractive_summary || 'No abstractive summary generated');
+    safeSetText(extractiveSummary, data.results?.extractive_summary || 'No extractive summary generated');
     
-    // Update all display elements
-    safeSetText(summaryText, data.results?.summary || 'No summary generated');
+    // Display other results
     safeSetText(emotionDisplay, data.results?.emotion || 'Emotion not detected');
     safeSetText(keywordsDisplay, data.results?.keywords || 'No keywords detected');
     safeSetText(highlightsDisplay, data.results?.highlights || 'No highlights detected');
@@ -100,6 +98,11 @@ function displayResults(data) {
     safeSetText(chaptersDisplay, data.results?.chapters || 'No chapters generated');
     safeSetText(speakerSummaryText, data.results?.speaker_summary || 'No speaker summaries available');
     safeSetText(timelineDisplay, data.results?.timeline || 'No timeline generated');
+    
+    // Display statistics if available
+    if (data.stats) {
+        console.log('Stats:', data.stats);
+    }
     
     // Display metrics
     if (data.results?.metrics) {
@@ -121,7 +124,7 @@ function safeSetText(element, text) {
     if (element) {
         element.textContent = text;
     } else {
-        console.warn('Element not found for text:', text.substring(0, 50));
+        console.warn('Element not found for text:', text ? text.substring(0, 50) : 'empty');
     }
 }
 
@@ -131,6 +134,7 @@ uploadForm.addEventListener('submit', async function(e) {
     
     const urlInput = document.querySelector('input[name="url"]');
     const fileInput = document.querySelector('input[name="file"]');
+    const enableDiarization = document.querySelector('input[name="enable_diarization"]');
     
     if (!urlInput || !fileInput) {
         alert('Form inputs not found');
@@ -197,13 +201,19 @@ clearBtn.addEventListener('click', function() {
     
     // Clear all displays
     const displays = [
-        metricsDisplay, summaryText, emotionDisplay, keywordsDisplay,
-        highlightsDisplay, tasksDisplay, chaptersDisplay, 
+        metricsDisplay, abstractiveSummary, extractiveSummary, emotionDisplay, 
+        keywordsDisplay, highlightsDisplay, tasksDisplay, chaptersDisplay, 
         speakerSummaryText, timelineDisplay
     ];
     
     displays.forEach(el => {
-        if (el) el.innerHTML = '';
+        if (el) {
+            if (el.tagName === 'DIV' && el.classList.contains('metrics-grid')) {
+                el.innerHTML = '';
+            } else {
+                el.textContent = '';
+            }
+        }
     });
     
     if (exportCsvBtn) exportCsvBtn.disabled = true;
@@ -286,8 +296,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if all required elements exist
     const requiredElements = {
         uploadForm, submitBtn, clearBtn, resultsContentDiv, loadingDiv,
-        metricsDisplay, summaryText, emotionDisplay, keywordsDisplay,
-        highlightsDisplay, tasksDisplay, chaptersDisplay, 
+        metricsDisplay, abstractiveSummary, extractiveSummary, emotionDisplay,
+        keywordsDisplay, highlightsDisplay, tasksDisplay, chaptersDisplay, 
         speakerSummaryText, timelineDisplay
     };
     
@@ -301,3 +311,18 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ All required elements found');
     }
 });
+
+// Add CSS classes for metric colors (if not in your CSS)
+const style = document.createElement('style');
+style.textContent = `
+    .metric-box.success {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+    .metric-box.warning {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+    .metric-box.error {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+`;
+document.head.appendChild(style);

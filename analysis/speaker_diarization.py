@@ -1,5 +1,5 @@
 """
-Speaker Diarization using Pyannote - Fixed version
+Speaker Diarization using Pyannote - NO TORCHAUDIO VERSION
 """
 
 from typing import List, Dict, Optional
@@ -9,24 +9,28 @@ from models_manager import get_model
 def diarize_speakers_pyannote(audio_path: str) -> List[Dict]:
     """
     Speaker diarization using Pyannote
-    
-    Args:
-        audio_path: Path to audio file
-        
-    Returns:
-        List of speaker segments with start, end, speaker
     """
     print("   🔧 Getting Pyannote model...")
     diarization_model = get_model("diarization")
     
     if diarization_model is None:
-        print("   ⚠️ Pyannote model not available, using fallback")
+        print("   ❌ Pyannote model not available - MODEL IS NONE")
+        print("   💡 Check: Pyannote failed to load in models_manager.py")
         return []
     
     try:
         print("   🔧 Running Pyannote inference...")
-        # Apply diarization
-        diarization = diarization_model(audio_path)
+        
+        # Try different input formats
+        try:
+            # Try direct file path first
+            diarization = diarization_model(audio_path)
+        except Exception as e:
+            print(f"   ⚠️ Direct loading failed: {e}")
+            # Try with waveform loading
+            import torchaudio
+            waveform, sample_rate = torchaudio.load(audio_path)
+            diarization = diarization_model({"waveform": waveform, "sample_rate": sample_rate})
         
         # Convert to list of dictionaries
         segments = []
@@ -43,7 +47,6 @@ def diarize_speakers_pyannote(audio_path: str) -> List[Dict]:
         
         print(f"   ✅ Pyannote identified {len(speakers)} speakers: {', '.join(speakers)}")
         
-        # Show duration breakdown
         if segments:
             speaker_durations = {}
             for seg in segments:
@@ -55,7 +58,7 @@ def diarize_speakers_pyannote(audio_path: str) -> List[Dict]:
         return segments
         
     except Exception as e:
-        print(f"   ⚠️ Pyannote diarization failed: {e}")
+        print(f"   ❌ Pyannote diarization failed: {e}")
         import traceback
         traceback.print_exc()
         return []

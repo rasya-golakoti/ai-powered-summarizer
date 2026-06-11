@@ -8,7 +8,12 @@ import uuid
 import json
 import subprocess
 from pathlib import Path
+import matplotlib
 from flask import Flask, render_template, request, jsonify, send_file, url_for
+matplotlib.use('Agg')
+import os
+os.environ['SB_DISABLE_K2'] = '1'
+
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -46,16 +51,13 @@ def upload_file():
     try:
         # Get form data
         url = request.form.get('url', '').strip()
-        input_language = request.form.get('input_language', '').strip()
-        target_language = request.form.get('target_language', 'en').strip()
-        summarization_type = request.form.get('summarization_type', 'abstractive')
         enable_diarization = request.form.get('enable_diarization') == 'true'
         
         file = request.files.get('file')
         
         # Validate input
         if not url and not file:
-            return jsonify({'error': 'Please provide a file or URL'}), 400
+            return jsonify({'error': 'Please provide a file or YouTube URL'}), 400
         
         # Handle file upload
         input_path = url
@@ -72,10 +74,7 @@ def upload_file():
         summarizer = get_summarizer()
         
         # Configure processing based on options
-        # Note: You may need to modify your summarizer to accept these options
         print(f"🎯 Processing: {input_path[:50]}...")
-        print(f"   Language: {input_language or 'auto'}")
-        print(f"   Summary type: {summarization_type}")
         print(f"   Speaker diarization: {enable_diarization}")
         
         # Process the audio/video
@@ -100,25 +99,24 @@ def upload_file():
         return jsonify({'error': str(e)}), 500
 
 def format_results_for_frontend(results, result_id):
-    """Format results for frontend display"""
+    """Format results for frontend display with both summary types"""
     
     # Get transcript
     transcript = results.get('transcription', {}).get('full_text', 'No transcript generated')
     
-    # Get summary (prefer abstractive)
-    summary = results.get('summarization', {}).get('abstractive', 'No summary generated')
-    if not summary:
-        summary = results.get('summarization', {}).get('extractive', 'No summary generated')
+    # Get both summary types
+    abstractive_summary = results.get('summarization', {}).get('abstractive', 'No abstractive summary generated')
+    extractive_summary = results.get('summarization', {}).get('extractive', 'No extractive summary generated')
     
     # Get emotion
     emotion_data = results.get('emotion_analysis', {})
     emotion_text = "Emotion not detected"
     if emotion_data:
         if 'emotion_scores' in emotion_data:
-            emotion_text = "\n".join([
-                f"{k}: {v*100:.1f}%" 
-                for k, v in emotion_data['emotion_scores'].items()
-            ])
+            # Sort emotions by score descending for better display
+            sorted_emotions = sorted(emotion_data['emotion_scores'].items(), key=lambda x: x[1], reverse=True)
+            emotion_lines = [f"{k}: {v*100:.1f}%" for k, v in sorted_emotions]
+            emotion_text = "\n".join(emotion_lines)
         if 'dominant_emotion' in emotion_data:
             emotion_text = f"Dominant: {emotion_data['dominant_emotion']}\n\n{emotion_text}"
     
@@ -144,44 +142,25 @@ def format_results_for_frontend(results, result_id):
         for c in chapters[:5]
     ]) if chapters else "No chapters generated"
     
-    # # Get speaker summary
-    # speaker_data = results.get('speaker_analysis', {})
-    # speaker_text = ""
-    # if 'summaries' in speaker_data:
-    #     for speaker, data in speaker_data['summaries'].items():
-    #         speaker_text += f"{speaker}:\n{data.get('summary', '')}\n\n"
-    # elif 'segments' in speaker_data:
-    #     speakers = set(s.get('speaker', 'Unknown') for s in speaker_data['segments'])
-    #     speaker_text = f"Detected {len(speakers)} speakers: {', '.join(speakers)}"
-    # else:
-    #     speaker_text = "No speaker analysis available"
-
-    # In format_results_for_frontend function, replace the speaker section:
-
     # Get speaker summary
     speaker_data = results.get('speaker_analysis', {})
     speaker_text = ""
 
     if 'summaries' in speaker_data:
-        # Use the new formatted speaker summaries
         for speaker, data in speaker_data['summaries'].items():
             if isinstance(data, dict):
-                # New format with summary field
                 speaker_text += f"{speaker}:\n{data.get('summary', '')}\n\n"
             else:
-                # Old format (direct string)
                 speaker_text += f"{speaker}:\n{data}\n\n"
     elif 'segments' in speaker_data:
-        # If no summaries, group by speaker and show first few lines
         speaker_groups = {}
         for seg in speaker_data['segments']:
             spk = seg.get('speaker', 'Unknown')
             if spk not in speaker_groups:
                 speaker_groups[spk] = []
             speaker_groups[spk].append(seg.get('text', ''))
-    
+        
         for spk, texts in speaker_groups.items():
-            # Join texts and truncate
             full_text = ' '.join(texts)
             if len(full_text) > 300:
                 full_text = full_text[:300] + '...'
@@ -196,12 +175,10 @@ def format_results_for_frontend(results, result_id):
             start = t.get('time_start', 0)
             end = t.get('time_end', 0)
             try:
-                # Convert to integers for formatting
                 start_int = int(start)
                 end_int = int(end)
                 timeline_text += f"[{start_int//60:02d}:{start_int%60:02d} - {end_int//60:02d}:{end_int%60:02d}] {t.get('title', 'Topic')}\n"
             except (ValueError, TypeError):
-                # Fallback if conversion fails
                 timeline_text += f"[{start:.1f}s - {end:.1f}s] {t.get('title', 'Topic')}\n"
     else:
         timeline_text = "No timeline generated"
@@ -214,7 +191,8 @@ def format_results_for_frontend(results, result_id):
         'result_id': result_id,
         'results': {
             'transcript': transcript[:500] + '...' if len(transcript) > 500 else transcript,
-            'summary': summary,
+            'abstractive_summary': abstractive_summary,
+            'extractive_summary': extractive_summary,
             'emotion': emotion_text,
             'keywords': keywords_text,
             'highlights': highlights_text,
@@ -294,7 +272,7 @@ def export_results(result_id, format):
     return jsonify({'error': 'Invalid format'}), 400
 
 def generate_text_export(results):
-    """Generate comprehensive text export"""
+    """Generate comprehensive text export with both summaries"""
     lines = []
     lines.append("="*60)
     lines.append("AI AUDIO SUMMARIZER - ANALYSIS RESULTS")
@@ -316,9 +294,13 @@ def generate_text_export(results):
     lines.append(f"  Topics: {results.get('topic_analysis', {}).get('topic_count', 0)}")
     lines.append("")
     
-    # Summary
-    lines.append("SUMMARY:")
-    lines.append(results.get('summarization', {}).get('abstractive', 'No summary'))
+    # Both Summaries
+    lines.append("ABSTRACTIVE SUMMARY (AI Rewrite):")
+    lines.append(results.get('summarization', {}).get('abstractive', 'No abstractive summary'))
+    lines.append("")
+    
+    lines.append("EXTRACTIVE SUMMARY (Key Sentences):")
+    lines.append(results.get('summarization', {}).get('extractive', 'No extractive summary'))
     lines.append("")
     
     # Metrics
@@ -327,7 +309,16 @@ def generate_text_export(results):
     lines.append(f"  ROUGE-L: {metrics.get('rouge_l', 0):.3f}")
     lines.append(f"  BLEU: {metrics.get('bleu', 0):.3f}")
     lines.append(f"  BERT-F1: {metrics.get('bert_f1', 0):.3f}")
+    lines.append(f"  Compression Ratio: {metrics.get('compression_ratio', 0):.3f}")
     lines.append("")
+    
+    # Emotion
+    emotion_data = results.get('emotion_analysis', {})
+    if emotion_data and 'emotion_scores' in emotion_data:
+        lines.append("EMOTION ANALYSIS:")
+        for emotion, score in sorted(emotion_data['emotion_scores'].items(), key=lambda x: x[1], reverse=True):
+            lines.append(f"  {emotion}: {score*100:.1f}%")
+        lines.append("")
     
     # Keywords
     keywords = results.get('keyword_analysis', {}).get('keywords', [])
@@ -335,6 +326,16 @@ def generate_text_export(results):
         lines.append("TOP KEYWORDS:")
         for kw, score in keywords[:10]:
             lines.append(f"  • {kw} ({score:.3f})")
+        lines.append("")
+    
+    # Topics/Chapters
+    topics = results.get('topic_analysis', {}).get('topics', [])
+    if topics:
+        lines.append("TOPIC TIMELINE:")
+        for t in topics[:5]:
+            start = t.get('time_start', 0)
+            end = t.get('time_end', 0)
+            lines.append(f"  [{int(start)//60:02d}:{int(start)%60:02d} - {int(end)//60:02d}:{int(end)%60:02d}] {t.get('title', 'Topic')}")
         lines.append("")
     
     return "\n".join(lines)

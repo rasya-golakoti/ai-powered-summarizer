@@ -9,6 +9,9 @@ from sentence_transformers import SentenceTransformer
 import whisper
 import warnings
 
+# Disable k2 import in speechbrain (MUST BE BEFORE ANY OTHER IMPORTS)
+os.environ['SB_DISABLE_K2'] = '1'
+
 warnings.filterwarnings("ignore")
 
 class ModelsManager:
@@ -85,25 +88,32 @@ class ModelsManager:
         print("\n🔹 6. Loading Pyannote Speaker Diarization...")
         try:
             from pyannote.audio import Pipeline
-            import huggingface_hub
             
-            # Check if already logged in
-            try:
-                # Try to load with default settings
-                self._models["diarization"] = Pipeline.from_pretrained(
+            # Get token from environment
+            hf_token = os.environ.get('HUGGINGFACE_TOKEN')
+            
+            if hf_token:
+                print("   🔧 Using Hugging Face token for authentication")
+                pipeline_obj = Pipeline.from_pretrained(
                     "pyannote/speaker-diarization-3.1",
-                    use_auth_token=True
+                    use_auth_token=hf_token
                 )
                 print("   ✅ Pyannote diarization loaded (with auth token)")
-            except Exception as e:
-                print(f"   ⚠️ First attempt failed: {e}")
+                self._models["diarization"] = pipeline_obj
+            else:
+                print("   ⚠️ No Hugging Face token found. Trying without token...")
                 # Try without token as fallback
-                self._models["diarization"] = Pipeline.from_pretrained(
-                    "pyannote/speaker-diarization-3.1",
-                    use_auth_token=False
-                )
-                print("   ✅ Pyannote diarization loaded (without auth token)")
-                
+                try:
+                    pipeline_obj = Pipeline.from_pretrained(
+                        "pyannote/speaker-diarization-3.1",
+                        use_auth_token=False
+                    )
+                    print("   ✅ Pyannote diarization loaded (without auth token)")
+                    self._models["diarization"] = pipeline_obj
+                except Exception as e2:
+                    print(f"   ⚠️ Pyannote failed even without token: {e2}")
+                    self._models["diarization"] = None
+                    
         except Exception as e:
             print(f"   ⚠️ Pyannote failed: {e}")
             self._models["diarization"] = None
@@ -125,16 +135,19 @@ class ModelsManager:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+
 # Global functions for easy access
 def load_models():
     """Load all models"""
     manager = ModelsManager()
     return manager.load_all()
 
+
 def get_model(model_name):
     """Get specific model"""
     manager = ModelsManager()
     return manager.get_model(model_name)
+
 
 def clear_models():
     """Clear models from memory"""
