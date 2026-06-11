@@ -2,7 +2,7 @@
 Keyword Extraction using KeyBERT and Transformer models - Enhanced Version
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from models_manager import get_model
 import re
 
